@@ -135,7 +135,8 @@ async function handleCronTrigger(env: Env) {
     const allSubs = JSON.parse(JSON.stringify(originalSubs)); // 深拷贝以便比较
     const settings = await env.SUB_ONE_KV.get(KV_KEY_SETTINGS, 'json') || defaultSettings;
 
-    const nodeRegex = /^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm;
+    // 使用全局匹配，不依赖多行模式
+    const nodeRegex = /(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g;
     let changesMade = false;
 
     for (const sub of allSubs) {
@@ -359,12 +360,38 @@ async function handleApiRequest(request: Request, env: Env) {
                     env.SUB_ONE_KV.get(KV_KEY_PROFILES, 'json').then(res => res || []),
                     env.SUB_ONE_KV.get(KV_KEY_SETTINGS, 'json').then(res => res || {} as any)
                 ]);
+
+                // 为订阅组附加节点数量信息
+                const profilesWithNodeCount = (profiles as any[]).map(profile => {
+                    let totalNodes = 0;
+
+                    // 1. 统计订阅节点
+                    if (profile.subscriptions && Array.isArray(profile.subscriptions)) {
+                        profile.subscriptions.forEach((subId: string) => {
+                            const sub = (subs as any[]).find(s => s.id === subId);
+                            if (sub && sub.nodeCount) {
+                                totalNodes += sub.nodeCount;
+                            }
+                        });
+                    }
+
+                    // 2. 统计手动节点
+                    if (profile.manualNodes && Array.isArray(profile.manualNodes)) {
+                        totalNodes += profile.manualNodes.length;
+                    }
+
+                    return {
+                        ...profile,
+                        nodeCount: totalNodes
+                    };
+                });
+
                 const config = {
                     FileName: settings.FileName || 'SUB_ONE',
                     mytoken: settings.mytoken || 'auto',
                     profileToken: settings.profileToken || ''  // 默认为空
                 };
-                return new Response(JSON.stringify({ subs, profiles, config }), { headers: { 'Content-Type': 'application/json' } });
+                return new Response(JSON.stringify({ subs, profiles: profilesWithNodeCount, config }), { headers: { 'Content-Type': 'application/json' } });
             } catch (e) {
                 console.error('[API Error /data]', 'Failed to read from KV:', e);
                 return new Response(JSON.stringify({ error: '读取初始数据失败' }), { status: 500 });
@@ -511,7 +538,8 @@ async function handleApiRequest(request: Request, env: Env) {
                     // 方法1: 尝试Base64解码后匹配节点链接
                     try {
                         const decoded = atob(text.replace(/\s/g, ''));
-                        const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls):\/\//gm);
+                        // 使用全局匹配，不依赖多行模式
+                        const lineMatches = decoded.match(/(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g);
                         if (lineMatches) {
                             nodeCount = lineMatches.length;
                         }
@@ -535,7 +563,7 @@ async function handleApiRequest(request: Request, env: Env) {
 
                     // 方法3: 直接匹配原始文本中的节点链接
                     if (nodeCount === 0) {
-                        const lineMatches = text.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls):\/\//gm);
+                        const lineMatches = text.match(/(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g);
                         if (lineMatches) {
                             nodeCount = lineMatches.length;
                         }
@@ -646,7 +674,8 @@ async function handleApiRequest(request: Request, env: Env) {
                             // 方法1: 尝试Base64解码后匹配节点链接
                             try {
                                 const decoded = atob(text.replace(/\s/g, ''));
-                                const lineMatches = decoded.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
+                                // 使用全局匹配，不依赖多行模式
+                                const lineMatches = decoded.match(/(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g);
                                 if (lineMatches) {
                                     nodeCount = lineMatches.length;
                                 }
@@ -668,7 +697,7 @@ async function handleApiRequest(request: Request, env: Env) {
 
                             // 方法3: 直接匹配原始文本中的节点链接
                             if (nodeCount === 0) {
-                                const lineMatches = text.match(/^(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//gm);
+                                const lineMatches = text.match(/(ss|ssr|vmess|vless|trojan|hysteria2?|hy|hy2|tuic|anytls|socks5):\/\//g);
                                 if (lineMatches) {
                                     nodeCount = lineMatches.length;
                                 }
@@ -1757,27 +1786,63 @@ async function handleSubRequest(context: EventContext<Env, any, any>) {
 
     // 使用固定的 User-Agent 请求上游订阅，避免因客户端 UA 导致被屏蔽或返回错误格式
     const upstreamUserAgent = 'Clash for Windows/0.20.39';
-    const combinedNodeList = await generateCombinedNodeList(context, config, upstreamUserAgent, targetSubs, prependedContentForSubconverter);
 
+    // **优化 Base64 格式：直接获取原始内容，不解析**
+    // 这样可以保留所有协议（包括 AnyTLS）
     if (targetFormat === 'base64') {
-        let contentToEncode;
+        let contentToEncode = '';
+
         if (isProfileExpired) {
-            contentToEncode = DEFAULT_EXPIRED_NODE + '\n'; // Return the expired node link for base64 clients
+            contentToEncode = DEFAULT_EXPIRED_NODE + '\n';
         } else {
-            contentToEncode = combinedNodeList;
+            const contentParts: string[] = [];
+
+            // 1. 获取所有 HTTP 订阅的原始内容
+            const httpSubs = targetSubs.filter(sub => sub.url && sub.url.toLowerCase().startsWith('http'));
+            for (const sub of httpSubs) {
+                try {
+                    const response = await Promise.race([
+                        fetch(new Request(sub.url, {
+                            headers: { 'User-Agent': upstreamUserAgent },
+                            redirect: "follow",
+                            cf: { insecureSkipVerify: true }
+                        } as any)),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+                    ]) as Response;
+
+                    if (response.ok) {
+                        let rawContent = await response.text();
+                        // 去除可能的 Base64 外层编码
+                        try {
+                            // 尝试解码，如果是Base64编码的内容
+                            const decoded = atob(rawContent.trim());
+                            if (decoded && /^(ss|ssr|vmess|vless|trojan|hysteria|hy|tuic|anytls):\/\//.test(decoded)) {
+                                rawContent = decoded;
+                            }
+                        } catch (e) {
+                            // 不是Base64或解码失败，使用原始内容
+                        }
+                        contentParts.push(rawContent);
+                    }
+                } catch (e) {
+                    console.error(`Failed to fetch sub ${sub.name}:`, e);
+                }
+            }
+
+            // 2. 添加手动节点
+            const manualNodes = targetSubs.filter(sub => sub.url && !sub.url.toLowerCase().startsWith('http'));
+            contentParts.push(...manualNodes.map(n => n.url));
+
+            // 3. 添加流量提示
+            if (prependedContentForSubconverter) {
+                contentParts.push(prependedContentForSubconverter);
+            }
+
+            contentToEncode = contentParts.join('\n');
         }
+
         const headers = { "Content-Type": "text/plain; charset=utf-8", 'Cache-Control': 'no-store, no-cache' };
         return new Response(btoa(unescape(encodeURIComponent(contentToEncode))), { headers });
-    }
-
-    const base64Content = btoa(unescape(encodeURIComponent(combinedNodeList)));
-
-    const callbackToken = await getCallbackToken(env);
-    const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
-    const callbackUrl = `${url.protocol}//${url.host}${callbackPath}?target=base64&callback_token=${callbackToken}`;
-    if (url.searchParams.get('callback_token') === callbackToken) {
-        const headers = { "Content-Type": "text/plain; charset=utf-8", 'Cache-Control': 'no-store, no-cache' };
-        return new Response(base64Content, { headers });
     }
 
     // 智能处理：如果用户填入了 http:// 或 https:// 前缀，自动去除，防止 URL 拼接错误
