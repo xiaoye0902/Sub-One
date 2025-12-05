@@ -239,6 +239,7 @@ export class SubscriptionParser {
       ['hysteria', () => this.buildHysteriaUrl(proxy)],
       ['hysteria2', () => this.buildHysteriaUrl(proxy)],
       ['tuic', () => this.buildTUICUrl(proxy)],
+      ['anytls', () => this.buildAnytlsUrl(proxy)],
       ['socks5', () => this.buildSocks5Url(proxy)]
     ]);
 
@@ -282,6 +283,11 @@ export class SubscriptionParser {
 
     // 优化：使用数组构建查询参数，提升性能
     const queryParams = [];
+
+    // 添加encryption参数（vless必须的参数）
+    // v2rayN客户端通常需要固定为none，但支持其他加密类型
+    const encryption = proxy.encryption || 'none';
+    queryParams.push(`encryption=${encryption}`);
 
     // 添加传输参数
     if (proxy.network && proxy.network !== 'tcp') {
@@ -455,6 +461,41 @@ export class SubscriptionParser {
       url += `?${params.toString()}`;
     }
 
+    if (proxy.name) {
+      url += `#${encodeURIComponent(proxy.name)}`;
+    }
+
+    return url;
+  }
+
+  /**
+   * 构建AnyTLS URL
+   */
+  buildAnytlsUrl(proxy: any) {
+    let url = `anytls://${proxy.password}@${proxy.server}:${proxy.port}`;
+
+    // 优化：使用数组构建查询参数，提升性能
+    const queryParams = [];
+
+    // 添加TLS参数
+    if (proxy.sni) {
+      queryParams.push(`sni=${proxy.sni}`);
+    }
+
+    if (proxy['client-fingerprint']) {
+      queryParams.push(`fp=${proxy['client-fingerprint']}`);
+    }
+
+    if (proxy['skip-cert-verify'] === true) {
+      queryParams.push('insecure=1');
+    }
+
+    // 构建最终URL
+    if (queryParams.length > 0) {
+      url += `?${queryParams.join('&')}`;
+    }
+
+    // 添加名称
     if (proxy.name) {
       url += `#${encodeURIComponent(proxy.name)}`;
     }
