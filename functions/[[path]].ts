@@ -1490,14 +1490,48 @@ const subscriptionParser = new SubscriptionParser();
 async function generateCombinedNodeList(context, config, userAgent, subs, prependedContent = '') {
     // 1. 处理手动节点
     const manualNodes = subs.filter(sub => !sub.url.toLowerCase().startsWith('http'));
+    const httpSubs = subs.filter(sub => sub.url.toLowerCase().startsWith('http'));
+
+    //  **关键优化：如果只有一个HTTP订阅且没有手动节点，直接返回原始内容**
+    // 这样可以避免解析过程中过滤掉某个特殊协议（如 anytls）
+    if (httpSubs.length === 1 && manualNodes.length === 0 && !prependedContent) {
+        try {
+            const sub = httpSubs[0];
+            const response = await Promise.race([
+                fetch(new Request(sub.url, {
+                    headers: { 'User-Agent': userAgent },
+                    redirect: "follow",
+                    cf: { insecureSkipVerify: true }
+                } as any)),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+            ]) as Response;
+
+            if (response.ok) {
+                let rawContent = await response.text();
+                // 如果有 exclude 规则，才需要解析处理
+                if (sub.exclude && sub.exclude.trim()) {
+                    const nodes = subscriptionParser.parse(rawContent, sub.name, {
+                        exclude: sub.exclude,
+                        prependSubName: config.prependSubName
+                    });
+                    return nodes.join('\n');
+                }
+                // 否则直接返回原始内容（保留所有协议）
+                return rawContent;
+            }
+        } catch (e) {
+            console.error(`Failed to fetch single sub:`, e);
+            // 失败则继续使用原有逻辑
+        }
+    }
+
+    // 2. 标准流程：解析和合并（用于多订阅或有手动节点的情况）
     const processedManualNodes = subscriptionParser.processNodes(
         manualNodes.map(n => n.url),
         '手动节点',
         { prependSubName: config.prependSubName }
     );
 
-    // 2. 处理 HTTP 订阅
-    const httpSubs = subs.filter(sub => sub.url.toLowerCase().startsWith('http'));
     const subPromises = httpSubs.map(async (sub) => {
         try {
             const response = await Promise.race([
@@ -1763,7 +1797,31 @@ async function handleSubRequest(context: EventContext<Env, any, any>) {
         subconverterUrl.searchParams.set('ver', 'meta');
     }
 
-    subconverterUrl.searchParams.set('url', callbackUrl);
+    // **关键优化：让 Subconverter 直接处理订阅合并，而不是我们自己解析**
+    // 这样可以保留所有协议（包括 anytls、vless 等），避免解析过程中丢失节点
+
+    // 1. 收集所有HTTP订阅URL
+    const httpSubUrls = targetSubs
+        .filter(sub => sub.url && sub.url.toLowerCase().startsWith('http'))
+        .map(sub => sub.url);
+
+    // 2. 处理手动节点
+    const manualNodes = targetSubs.filter(sub => !sub.url || !sub.url.toLowerCase().startsWith('http'));
+    const hasManualNodes = manualNodes.length > 0;
+
+    let urlParam: string;
+
+    if (httpSubUrls.length > 0 && !hasManualNodes) {
+        // 情况1：只有HTTP订阅，直接传给Subconverter（推荐方式）
+        urlParam = httpSubUrls.join('|');
+    } else {
+        // 情况2：有手动节点，需要使用callback URL合并
+        const callbackToken = await getCallbackToken(env);
+        const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
+        urlParam = `${url.protocol}//${url.host}${callbackPath}?target=base64&callback_token=${callbackToken}`;
+    }
+
+    subconverterUrl.searchParams.set('url', urlParam);
     if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
         subconverterUrl.searchParams.set('config', effectiveSubConfig);
     }
