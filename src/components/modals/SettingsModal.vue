@@ -24,7 +24,7 @@ const defaultSettings: AppConfig = {
   subConfig: 'https://raw.githubusercontent.com/cmliu/ACL4SSR/refs/heads/main/Clash/config/ACL4SSR_Online_Full.ini',
   prependSubName: true,
   mytoken: 'auto',
-  profileToken: 'profiles',
+  profileToken: '', // 默认为空，用户需主动设置
   BotToken: '',
   ChatID: ''
 };
@@ -177,14 +177,14 @@ watch(() => props.show, (newValue) => {
               <label for="profileToken"
                 class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">订阅组分享Token</label>
               <input type="text" id="profileToken" v-model="settings.profileToken" class="input-modern-enhanced w-full"
-                placeholder="用于生成订阅组链接专用Token">
-              <p class="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24"
-                  stroke="currentColor">
+                placeholder="例如：my-profiles 或 group-share（必须与订阅Token不同）">
+              <p class="text-xs text-amber-600 dark:text-amber-400 mt-2 flex items-start gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mt-0.5 flex-shrink-0" fill="none"
+                  viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-1.964-1.333-2.732 0L3.732 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                此Token专门用于生成订阅组链接，增强安全性
+                <span>⚠️ 重要：此Token必须与"自定义订阅Token"不同，否则会导致访问冲突。留空则无法使用订阅组分享功能。</span>
               </p>
             </div>
             <div>
