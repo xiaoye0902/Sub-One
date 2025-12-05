@@ -48,12 +48,29 @@ export class SubscriptionParser {
    */
   decodeBase64(str: string) {
     try {
-      const binaryString = atob(str);
+      // 预处理：清理和规范化 Base64 字符串
+      let cleanedStr = str.trim();
+      
+      // 替换 URL 安全字符为标准 Base64 字符
+      cleanedStr = cleanedStr.replace(/-/g, '+').replace(/_/g, '/');
+      
+      // 处理缺少填充字符的情况
+      const padding = cleanedStr.length % 4;
+      if (padding !== 0) {
+        cleanedStr += '='.repeat(4 - padding);
+      }
+      
+      // 移除所有非 Base64 字符
+      cleanedStr = cleanedStr.replace(/[^A-Za-z0-9+/=]/g, '');
+      
+      // 尝试解码
+      const binaryString = atob(cleanedStr);
       const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
       return new TextDecoder('utf-8').decode(bytes);
     } catch (e) {
       console.warn('Base64 decoding failed:', e);
-      return atob(str); // Fallback to standard atob
+      // 解码失败，返回原始字符串，避免整个解析过程失败
+      return str;
     }
   }
 
