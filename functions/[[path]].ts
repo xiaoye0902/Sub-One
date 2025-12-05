@@ -1797,29 +1797,31 @@ async function handleSubRequest(context: EventContext<Env, any, any>) {
         subconverterUrl.searchParams.set('ver', 'meta');
     }
 
-    // **关键优化：让 Subconverter 直接处理订阅合并，而不是我们自己解析**
-    // 这样可以保留所有协议（包括 anytls、vless 等），避免解析过程中丢失节点
+    // **终极优化：完全由 Subconverter 处理，不再由 Worker 解析节点**
+    // Subconverter 支持混合传递：订阅链接|节点链接1|节点链接2
+    // 优点：100% 保留所有协议（anytls、vless、reality等）和字段
 
-    // 1. 收集所有HTTP订阅URL
+    const urlParts: string[] = [];
+
+    // 1. 添加所有 HTTP 订阅链接
     const httpSubUrls = targetSubs
         .filter(sub => sub.url && sub.url.toLowerCase().startsWith('http'))
         .map(sub => sub.url);
+    urlParts.push(...httpSubUrls);
 
-    // 2. 处理手动节点
-    const manualNodes = targetSubs.filter(sub => !sub.url || !sub.url.toLowerCase().startsWith('http'));
-    const hasManualNodes = manualNodes.length > 0;
+    // 2. 添加所有手动节点（直接传递节点链接）
+    const manualNodeUrls = targetSubs
+        .filter(sub => sub.url && !sub.url.toLowerCase().startsWith('http'))
+        .map(sub => sub.url);
+    urlParts.push(...manualNodeUrls);
 
-    let urlParam: string;
-
-    if (httpSubUrls.length > 0 && !hasManualNodes) {
-        // 情况1：只有HTTP订阅，直接传给Subconverter（推荐方式）
-        urlParam = httpSubUrls.join('|');
-    } else {
-        // 情况2：有手动节点，需要使用callback URL合并
-        const callbackToken = await getCallbackToken(env);
-        const callbackPath = profileIdentifier ? `/${token}/${profileIdentifier}` : `/${token}`;
-        urlParam = `${url.protocol}//${url.host}${callbackPath}?target=base64&callback_token=${callbackToken}`;
+    // 3. 添加流量提示节点（如果有）
+    if (prependedContentForSubconverter) {
+        urlParts.push(prependedContentForSubconverter);
     }
+
+    // 4. 组合成 URL 参数（用 | 分隔）
+    const urlParam = urlParts.join('|');
 
     subconverterUrl.searchParams.set('url', urlParam);
     if ((targetFormat === 'clash' || targetFormat === 'loon' || targetFormat === 'surge') && effectiveSubConfig && effectiveSubConfig.trim() !== '') {
