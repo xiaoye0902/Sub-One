@@ -149,7 +149,9 @@ const fetchProfileNodes = async () => {
 
             if (response.ok) {
               const content = await response.text();
-              const parsedNodes = subscriptionParser.parse(content, subscription.name);
+              const parsedNodes = subscriptionParser.parse(content, subscription.name, {
+                exclude: subscription.exclude
+              });
               // 标记来源，方便显示
               return parsedNodes.map(node => ({
                 id: node.id,
