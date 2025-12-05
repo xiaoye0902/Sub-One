@@ -60,9 +60,9 @@ const loadSettings = async () => {
     // 确保 loaded 是有效对象
     if (loaded && typeof loaded === 'object') {
       for (const key in loaded) {
-        // 只有当后端返回的值不为空时才覆盖默认值
-        // 这样可以防止后端返回的空字符串覆盖掉前端的默认推荐值
-        if (loaded[key as keyof AppConfig] !== undefined && loaded[key as keyof AppConfig] !== null && loaded[key as keyof AppConfig] !== '') {
+        // 只要后端返回了值（包括空字符串），就使用后端的值
+        // 这样用户可以主动清空某些配置（如 profileToken）
+        if (loaded[key as keyof AppConfig] !== undefined && loaded[key as keyof AppConfig] !== null) {
           (settings.value as any)[key] = loaded[key as keyof AppConfig];
         }
       }
@@ -184,7 +184,7 @@ watch(() => props.show, (newValue) => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-1.964-1.333-2.732 0L3.732 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <span>⚠️ 重要：此Token必须与"自定义订阅Token"不同，否则会导致访问冲突。留空则无法使用订阅组分享功能。</span>
+                <span>重要：此Token必须与"自定义订阅Token"不同，否则会导致访问冲突。留空则无法使用订阅组分享功能。</span>
               </p>
             </div>
             <div>
