@@ -119,39 +119,7 @@ html.dark body::after {
 
 /* ==================== Tailwind Layer Extensions ==================== */
 @layer components {
-  /* Sidebar Link */
-  .sidebar-link {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300;
-    @apply text-gray-700 dark:text-gray-300;
-    @apply hover:bg-white/50 dark:hover:bg-white/10;
-    @apply hover:shadow-lg hover:-translate-y-0.5;
-    @apply active:translate-y-0 active:scale-95;
-  }
-  
-  .sidebar-link.active {
-    @apply bg-gradient-to-r from-indigo-500 to-purple-600;
-    @apply text-white shadow-xl;
-    @apply hover:from-indigo-600 hover:to-purple-700;
-  }
-  
-  /* Content Card */
-  .content-card {
-    @apply rounded-2xl p-6 transition-all duration-300;
-    @apply bg-white dark:bg-gray-800;
-    @apply backdrop-blur-xl border border-gray-300 dark:border-gray-700;
-    @apply shadow-xl hover:shadow-2xl;
-    @apply hover:-translate-y-1;
-  }
-  
-  /* Form Button */
-  .form-btn {
-    @apply px-6 py-3 rounded-xl font-semibold transition-all duration-300;
-    @apply bg-gradient-to-r from-indigo-500 to-purple-600;
-    @apply text-white shadow-lg hover:shadow-xl;
-    @apply hover:-translate-y-1 hover:scale-105;
-    @apply active:translate-y-0 active:scale-95;
-    @apply disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:scale-100;
-  }
+
 
   /* Modern Button Base */
   .btn-modern {
@@ -499,44 +467,7 @@ html.dark .login-container {
   @apply transition-all duration-300;
 }
 
-/* Sidebar */
-.sidebar {
-  @apply fixed left-0 top-0 bottom-0 w-72;
-  @apply bg-white/80 dark:bg-gray-900/80;
-  @apply backdrop-blur-xl;
-  @apply shadow-2xl;
-  @apply transition-transform duration-300;
-  @apply z-40;
-}
 
-.sidebar.collapsed {
-  @apply -translate-x-full;
-}
-
-@media (max-width: 1024px) {
-  .sidebar {
-    @apply -translate-x-full;
-  }
-  
-  .sidebar.open {
-    @apply translate-x-0;
-  }
-}
-
-/* Main Content */
-.main-content {
-  @apply ml-72 transition-all duration-300;
-}
-
-.main-content.expanded {
-  @apply ml-0;
-}
-
-@media (max-width: 1024px) {
-  .main-content {
-    @apply ml-0;
-  }
-}
 
 /* Card Hover Effects */
 .card-hover-lift {
@@ -620,14 +551,6 @@ html.dark .login-container {
 @media (max-width: 768px) {
   .section-header {
     @apply text-2xl;
-  }
-  
-  .content-card {
-    @apply p-4;
-  }
-  
-  .form-btn {
-    @apply px-4 py-2 text-sm;
   }
   
   .grid-container {
